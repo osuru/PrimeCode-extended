@@ -173,6 +173,16 @@ function toProviderModel(model: ProviderListModel | ModelV2): OpenCodeProviderMo
 
 export class OpenCodeClientService {
 	private readonly projectConfig = new OpenCodeConfigService();
+	private _onConfigSaved: ((info: { path: string; contentHash: string }) => void) | undefined;
+
+	/**
+	 * Register a callback fired after this service writes to the project's opencode.json.
+	 * Lets the ConfigFileWatcher suppress reloads caused by these self-writes,
+	 * preventing the self-write → watcher → reload → write loop.
+	 */
+	public setOnConfigSaved(callback: (info: { path: string; contentHash: string }) => void): void {
+		this._onConfigSaved = callback;
+	}
 
 	public setWorkspaceRoot(workspaceRoot: string): void {
 		this.projectConfig.setWorkspaceRoot(workspaceRoot);
@@ -508,7 +518,8 @@ export class OpenCodeClientService {
 		permissionConfig: Record<string, string>,
 	): Promise<void> {
 		this.setWorkspaceRoot(workspaceRoot);
-		await this.projectConfig.setProjectField('permission', permissionConfig);
+		const result = await this.projectConfig.setProjectField('permission', permissionConfig);
+		this._onConfigSaved?.({ path: result.path, contentHash: result.contentHash });
 	}
 
 	/**
@@ -527,7 +538,10 @@ export class OpenCodeClientService {
 		const currentProxyProviders = await this.getAllProjectProxyProviders(workspaceRoot);
 		for (const provider of currentProxyProviders) {
 			if (!activeIds.has(provider.id)) {
-				await this.deleteCustomProvider(workspaceRoot, { providerId: provider.id });
+				const result = await this.deleteCustomProvider(workspaceRoot, {
+					providerId: provider.id,
+				});
+				this._notifySelfWrite(result);
 			}
 		}
 
@@ -537,7 +551,7 @@ export class OpenCodeClientService {
 			const protocol = getProxyEndpointProtocol(endpoint.protocol);
 			const npm = getCustomEndpointNpm(protocol);
 
-			await this.upsertCustomProvider(workspaceRoot, {
+			const result = await this.upsertCustomProvider(workspaceRoot, {
 				providerId: endpoint.id,
 				name: endpoint.name,
 				npm,
@@ -546,6 +560,13 @@ export class OpenCodeClientService {
 				headers: endpoint.headers,
 				models: endpoint.enabledModels.map(id => ({ id, name: id })),
 			});
+			this._notifySelfWrite(result);
+		}
+	}
+
+	private _notifySelfWrite(result: { path?: string; contentHash?: string }): void {
+		if (result.path && result.contentHash) {
+			this._onConfigSaved?.({ path: result.path, contentHash: result.contentHash });
 		}
 	}
 
@@ -560,7 +581,7 @@ export class OpenCodeClientService {
 			headers?: Record<string, string>;
 			models?: EnrichedProxyModel[];
 		},
-	): Promise<{ contentHash: string }> {
+	): Promise<{ path: string; contentHash: string }> {
 		this.setWorkspaceRoot(workspaceRoot);
 		const { providerId, name, npm, baseUrl, apiKey = '', headers, models = [] } = input;
 		const canonicalProviderId = providerId.trim();
@@ -635,13 +656,13 @@ export class OpenCodeClientService {
 			);
 			return typedConfig;
 		});
-		return { contentHash: result.contentHash };
+		return { path: result.path, contentHash: result.contentHash };
 	}
 
 	async deleteCustomProvider(
 		workspaceRoot: string,
 		input: { providerId: string; baseUrl?: string },
-	): Promise<{ contentHash?: string }> {
+	): Promise<{ path?: string; contentHash?: string }> {
 		this.setWorkspaceRoot(workspaceRoot);
 		const { providerId, baseUrl } = input;
 		const result = await this.projectConfig.patchProjectConfig(config => {
@@ -672,7 +693,7 @@ export class OpenCodeClientService {
 			}
 			return typedConfig;
 		});
-		return { contentHash: result.contentHash };
+		return { path: result.path, contentHash: result.contentHash };
 	}
 
 	private reconcileProjectModelForProxyProvider(

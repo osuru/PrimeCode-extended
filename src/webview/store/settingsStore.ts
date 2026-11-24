@@ -26,6 +26,7 @@ import {
 	type AgentResource,
 	type CLIProviderType,
 	type CommandResource,
+	DEFAULT_RATE_LIMITER_SETTINGS,
 	type DiscoveryStatus,
 	type ExtensionMessage,
 	getCustomEndpointDedupeKey,
@@ -37,6 +38,7 @@ import {
 	type PlatformInfo,
 	type PluginResource,
 	type ProxyEndpointProtocol,
+	type RateLimiterSettings,
 	type ResourceKind,
 	type Rule,
 	type SkillResource,
@@ -435,6 +437,12 @@ export interface SettingsState {
 	provider: CLIProviderType;
 	accessAutoApprove: boolean;
 
+	// Rate Limit
+	rateLimiter: RateLimiterSettings;
+
+	// Small Model
+	smallModel: string;
+
 	// Prompt Improver
 	promptImproveModel: string;
 	promptImproveTemplate: string;
@@ -517,6 +525,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
 	provider: 'opencode',
 	accessAutoApprove: false,
+
+	rateLimiter: { ...DEFAULT_RATE_LIMITER_SETTINGS },
+	smallModel: '',
 
 	promptImproveModel: '',
 	promptImproveTemplate: '',

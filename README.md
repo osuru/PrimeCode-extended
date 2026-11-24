@@ -49,6 +49,7 @@
 
 <tr><td colspan="2"><h3>Intelligence</h3></td></tr>
 <tr><td><b>Prompt Improver</b></td><td>One-click prompt enhancement before sending</td></tr>
+<tr><td><b>Rate Limiter</b></td><td>OpenCode plugin-backed request throttling with presets and custom limits</td></tr>
 <tr><td><b>Permissions</b></td><td>16 permission categories with ask/allow/deny + "always allow"</td></tr>
 <tr><td><b>Command Highlighting</b></td><td>Visual highlighting of <code>/commands</code> and <code>@subagents</code> in input</td></tr>
 <tr><td><b>Slash Commands</b></td><td>Custom <code>/</code>-commands from <code>.opencode/commands/</code></td></tr>
@@ -118,6 +119,22 @@ Managed via **`.opencode/`** directory:
 ### MCP
 
 Model Context Protocol server management — install, enable/disable, view tools, import from `.cursor/mcp.json` or `.mcp.json`.
+
+### OpenCode
+
+- **`primeCode.opencode.autoStart`** (default `true`) — automatically start the OpenCode server when the extension activates.
+- **`primeCode.opencode.serverTimeout`** (default `15000`) — timeout in milliseconds for the OpenCode server to start.
+- **`primeCode.opencode.serverUrl`** (default `""`) — URL of an existing OpenCode server to connect to (e.g. `http://127.0.0.1:3000`). If set, the extension will not start a new server.
+- **`primeCode.opencode.watchConfig`** (default `false`) — watch `opencode.json` for external changes and reload the runtime automatically. **Off by default**: the OpenCode server itself frequently rewrites its own config, and a file watcher can turn those rewrites into repeated reload loops (constant `loadMCPServers` / `reloadAllProviders` cycles). Enable only if you edit `opencode.json` manually and want the runtime reloaded automatically on save.
+
+### Rate Limiter & Small Model
+
+- **Settings → Main → Small Model** — writes the global OpenCode `small_model` field in `~/.config/opencode/opencode.json`. Use it for lightweight tasks like title generation; leave as `None` to use OpenCode defaults.
+- **Settings → Main → Rate Limiter** — manages a PrimeCode-generated OpenCode plugin at `~/.config/opencode/plugins/primecode-rate-limiter.js`.
+- **Enable rate limiter** — turns the plugin on/off. Disabling removes the generated plugin file.
+- **Presets** — `Conservative`, `Balanced`, `Aggressive`, and `Custom`.
+- **Custom values** — `Max concurrent requests`, `Requests per window`, `Rate window (ms)`, `Slot timeout (ms)`, and `Poll interval (ms)`.
+- **Logs** — rate limiter events are written to `${os.tmpdir()}/opencode-rate-limiter/rate-limiter.log`.
 
 ---
 

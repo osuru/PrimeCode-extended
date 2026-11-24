@@ -66,6 +66,48 @@ export class OpenCodeConfigService {
 		return configPath;
 	}
 
+	public async patchGlobalConfig(
+		mutator: (config: ProjectConfig) => undefined | ProjectConfig,
+	): Promise<{ path: string; config: ProjectConfig; contentHash: string }> {
+		const configPath = await this.resolveGlobalConfigPath();
+		if (!configPath) throw new Error('No global OpenCode config directory is available');
+		const uri = vscode.Uri.file(configPath);
+		let text: string | undefined;
+		let current: ProjectConfig = {};
+		try {
+			const raw = await vscode.workspace.fs.readFile(uri);
+			text = new TextDecoder().decode(raw);
+			current = parseConfigText(text, configPath);
+		} catch (error) {
+			if (error instanceof ProjectConfigParseError) throw error;
+			if (!isFileNotFound(error)) throw error;
+		}
+		const result = mutator(current);
+		const next = result ?? current;
+		const content = formatProjectConfig(next, text);
+		await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(configPath)));
+		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
+		return { path: configPath, config: next, contentHash: simpleHash(content) };
+	}
+
+	public async getGlobalField(key: string): Promise<unknown> {
+		const { config } = await this.readGlobalConfigForInspection();
+		return config[key];
+	}
+
+	public async setGlobalSmallModel(model: string): Promise<{ path: string; contentHash: string }> {
+		const result = await this.patchGlobalConfig(config => {
+			const value = model.trim();
+			if (value) {
+				config.small_model = value;
+			} else {
+				delete config.small_model;
+			}
+			return config;
+		});
+		return { path: result.path, contentHash: result.contentHash };
+	}
+
 	public async patchProjectConfig(
 		mutator: (config: ProjectConfig) => undefined | ProjectConfig,
 	): Promise<{ path: string; config: ProjectConfig; contentHash: string }> {

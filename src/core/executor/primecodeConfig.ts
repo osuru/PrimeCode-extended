@@ -13,6 +13,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+import {
+	DEFAULT_RATE_LIMITER_SETTINGS,
+	normalizeRateLimiterSettings,
+	type RateLimiterSettings,
+} from '../../common/rateLimiter';
 import { logger } from '../../utils/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -50,6 +55,8 @@ export interface AppSettings {
 	promptImproveModel: string;
 	promptImproveTemplate: string;
 	opencodeAgent: string;
+	rateLimiter: RateLimiterSettings;
+	smallModel: string;
 }
 
 export interface PrimeCodeConfig {
@@ -72,13 +79,15 @@ const DEFAULT_APP_SETTINGS: AppSettings = {
 	promptImproveModel: '',
 	promptImproveTemplate: '',
 	opencodeAgent: '',
+	rateLimiter: { ...DEFAULT_RATE_LIMITER_SETTINGS },
+	smallModel: '',
 };
 
 function defaultConfig(): PrimeCodeConfig {
 	return {
 		runtimes: [],
 		models: { ...DEFAULT_MODEL_SETTINGS },
-		app: { ...DEFAULT_APP_SETTINGS },
+		app: { ...DEFAULT_APP_SETTINGS, rateLimiter: { ...DEFAULT_APP_SETTINGS.rateLimiter } },
 	};
 }
 
@@ -181,6 +190,8 @@ function mergeAppSettings(raw: unknown): AppSettings {
 				: cache.app.promptImproveTemplate,
 		opencodeAgent:
 			typeof obj.opencodeAgent === 'string' ? obj.opencodeAgent : cache.app.opencodeAgent,
+		rateLimiter: normalizeRateLimiterSettings(obj.rateLimiter ?? cache.app.rateLimiter),
+		smallModel: typeof obj.smallModel === 'string' ? obj.smallModel : cache.app.smallModel,
 	};
 }
 

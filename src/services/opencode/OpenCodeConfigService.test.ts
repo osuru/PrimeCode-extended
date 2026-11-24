@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { OpenCodeConfigService, ProjectConfigParseError } from './OpenCodeConfigService';
 
@@ -13,6 +13,7 @@ vi.mock('vscode', async () => {
 			...actual.workspace,
 			fs: {
 				...actual.workspace.fs,
+				createDirectory: vi.fn(async () => {}),
 				stat: vi.fn(async (uri: { fsPath: string }) => {
 					if (!files.has(uri.fsPath)) {
 						throw Object.assign(new Error('File not found'), { code: 'FileNotFound' });
@@ -36,15 +37,28 @@ vi.mock('vscode', async () => {
 
 const workspaceRoot = '/test-workspace';
 const configPath = path.join(workspaceRoot, 'opencode.json');
+const testHome = '/test-home';
+const globalConfigPath = path.join(testHome, '.config', 'opencode', 'opencode.json');
+const originalHome = process.env.HOME;
+const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
 
 describe('OpenCodeConfigService', () => {
 	let service: OpenCodeConfigService;
 
 	beforeEach(() => {
+		process.env.HOME = testHome;
+		delete process.env.XDG_CONFIG_HOME;
 		files.clear();
 		vi.clearAllMocks();
 		service = new OpenCodeConfigService();
 		service.setWorkspaceRoot(workspaceRoot);
+	});
+
+	afterEach(() => {
+		if (originalHome === undefined) delete process.env.HOME;
+		else process.env.HOME = originalHome;
+		if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+		else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
 	});
 
 	it('preserves unrelated keys when setting agent disabled', async () => {
@@ -102,5 +116,18 @@ describe('OpenCodeConfigService', () => {
 		expect(written).toContain('"input": ["text", "image"]');
 		expect(written).toContain('"output": ["text"]');
 		expect(written.endsWith('\n')).toBe(false);
+	});
+
+	it('sets and removes the global small_model field', async () => {
+		files.set(globalConfigPath, JSON.stringify({ theme: 'dark', small_model: 'old/model' }));
+
+		await service.setGlobalSmallModel('provider/model');
+		expect(JSON.parse(files.get(globalConfigPath) ?? '{}')).toEqual({
+			theme: 'dark',
+			small_model: 'provider/model',
+		});
+
+		await service.setGlobalSmallModel('');
+		expect(JSON.parse(files.get(globalConfigPath) ?? '{}')).toEqual({ theme: 'dark' });
 	});
 });

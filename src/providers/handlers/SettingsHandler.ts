@@ -1,5 +1,10 @@
 import * as vscode from 'vscode';
-import { getCustomEndpointDedupeKey, getProxyEndpointProtocol } from '../../common';
+import {
+	getCustomEndpointDedupeKey,
+	getProxyEndpointProtocol,
+	normalizeRateLimiterSettings,
+	type RateLimiterSettings,
+} from '../../common';
 import type {
 	AgentResource,
 	CommandListItem,
@@ -152,7 +157,9 @@ export class SettingsHandler implements WebviewMessageHandler {
 
 	private async onGetSettings(): Promise<void> {
 		const settings = this.context.settings.getAll();
-		const merged = await this.mergeOpenCodeJsonEndpoints(settings);
+		const merged = await this.mergeGlobalSmallModel(
+			await this.mergeOpenCodeJsonEndpoints(settings),
+		);
 		this.context.bridge.data('settingsData', merged);
 	}
 
@@ -282,6 +289,16 @@ export class SettingsHandler implements WebviewMessageHandler {
 		}
 	}
 
+	private async mergeGlobalSmallModel(settings: PrimeCodeSettings): Promise<PrimeCodeSettings> {
+		try {
+			const value = await this.context.services.openCodeConfig.getGlobalField('small_model');
+			return { ...settings, smallModel: typeof value === 'string' ? value : '' };
+		} catch (error) {
+			logger.warn('[SettingsHandler] Failed to read global small_model:', error);
+			return settings;
+		}
+	}
+
 	private async onUpdateSettings(msg: CommandOf<'updateSettings'>): Promise<void> {
 		const changedKeys = Object.keys(msg.settings);
 		logger.info(`[SettingsHandler] User updated settings`, {
@@ -290,14 +307,28 @@ export class SettingsHandler implements WebviewMessageHandler {
 				changedKeys.map(k => [k, (msg.settings as Record<string, unknown>)[k]]),
 			),
 		});
-		await this.applyWebviewSettingsPatch(msg.settings);
+		const applied = await this.applyWebviewSettingsPatch(msg.settings);
+		if (applied.rateLimiter) {
+			await this.context.services.rateLimiter.apply(applied.rateLimiter);
+		}
+		if (applied.smallModel !== undefined) {
+			const result = await this.context.services.openCodeConfig.setGlobalSmallModel(
+				applied.smallModel,
+			);
+			this.context.services.configFileWatcher.notifyUiSave(result.contentHash, result.path);
+		}
 		this.context.settings.refresh();
 		const settings = this.context.settings.getAll();
-		const merged = await this.mergeOpenCodeJsonEndpoints(settings);
+		const merged = await this.mergeGlobalSmallModel(
+			await this.mergeOpenCodeJsonEndpoints(settings),
+		);
 		this.context.bridge.data('settingsData', merged);
 	}
 
-	private async applyWebviewSettingsPatch(patch: Record<string, unknown>): Promise<void> {
+	private async applyWebviewSettingsPatch(patch: Record<string, unknown>): Promise<{
+		rateLimiter?: RateLimiterSettings;
+		smallModel?: string;
+	}> {
 		const booleanKeys = new Set<keyof PrimeCodeSettings>([
 			'access.autoApprove',
 			'opencode.autoStart',
@@ -330,6 +361,8 @@ export class SettingsHandler implements WebviewMessageHandler {
 		// Accumulate app settings for a single batched disk write
 		const appPatch: Partial<import('../../core/executor/primecodeConfig').AppSettings> = {};
 		let hasAppUpdates = false;
+		let rateLimiter: RateLimiterSettings | undefined;
+		let smallModel: string | undefined;
 
 		for (const [rawKey, value] of Object.entries(patch)) {
 			if (rawKey === 'model') {
@@ -411,6 +444,20 @@ export class SettingsHandler implements WebviewMessageHandler {
 				hasAppUpdates = true;
 				continue;
 			}
+
+			if (rawKey === 'rateLimiter') {
+				rateLimiter = normalizeRateLimiterSettings(value);
+				appPatch.rateLimiter = rateLimiter;
+				hasAppUpdates = true;
+				continue;
+			}
+
+			if (rawKey === 'smallModel') {
+				smallModel = typeof value === 'string' ? value : '';
+				appPatch.smallModel = smallModel;
+				hasAppUpdates = true;
+				continue;
+			}
 			// ─── End app settings ────────────────────────────────────────────
 
 			if (rawKey === 'opencode.serverTimeout') {
@@ -436,6 +483,8 @@ export class SettingsHandler implements WebviewMessageHandler {
 				...(hasAppUpdates ? { app: appPatch } : {}),
 			});
 		}
+
+		return { rateLimiter, smallModel };
 	}
 
 	private async onGetResources(msg: CommandOf<'getResources'>): Promise<void> {

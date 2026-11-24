@@ -49,6 +49,16 @@ describe('primecodeConfig', () => {
 			expect(app.promptImproveModel).toBe('');
 			expect(app.promptImproveTemplate).toBe('');
 			expect(app.opencodeAgent).toBe('');
+			expect(app.rateLimiter).toMatchObject({
+				enabled: false,
+				preset: 'balanced',
+				maxConcurrent: 15,
+				maxRatePerWindow: 1,
+				rateWindowMs: 2000,
+				requestTimeoutMs: 15000,
+				checkIntervalMs: 200,
+			});
+			expect(app.smallModel).toBe('');
 		});
 
 		it('parses existing file correctly', () => {
@@ -73,6 +83,16 @@ describe('primecodeConfig', () => {
 					promptImproveModel: 'gpt-4o',
 					promptImproveTemplate: 'Improve this',
 					opencodeAgent: 'coder',
+					rateLimiter: {
+						enabled: true,
+						preset: 'custom',
+						maxConcurrent: 7,
+						maxRatePerWindow: 3,
+						rateWindowMs: 1500,
+						requestTimeoutMs: 20000,
+						checkIntervalMs: 100,
+					},
+					smallModel: 'provider/small-model',
 				},
 			};
 			if (!existsSync(TEST_DIR)) mkdirSync(TEST_DIR, { recursive: true });
@@ -88,6 +108,12 @@ describe('primecodeConfig', () => {
 			expect(app.proxyEndpoints[0].id).toBe('ep1');
 			expect(app.providersDisabled).toEqual(['openai']);
 			expect(app.opencodeAgent).toBe('coder');
+			expect(app.rateLimiter).toMatchObject({
+				enabled: true,
+				preset: 'custom',
+				maxConcurrent: 7,
+			});
+			expect(app.smallModel).toBe('provider/small-model');
 		});
 
 		it('handles corrupted JSON gracefully', () => {

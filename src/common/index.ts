@@ -32,6 +32,7 @@ export type {
 	WebviewCommand,
 } from './protocol';
 export * from './proxyEndpoints';
+export * from './rateLimiter';
 // Schemas: runtime-validated types (TypeBox) — exported first as source of truth for Rule, ParsedCommand, etc.
 export * from './schemas';
 // Unified tool name registry (shared between extension and webview)

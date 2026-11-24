@@ -304,6 +304,25 @@ export const ProviderManager: React.FC = () => {
 		persistProxyEndpoints(nextEndpoints);
 	};
 
+	const syncEndpointToOpenCode = (endpointId: string) => {
+		const endpoint = useSettingsStore
+			.getState()
+			.proxyEndpoints.find(item => item.id === endpointId);
+		if (!endpoint?.baseUrl.trim() || endpoint.enabledModels.length === 0) return;
+		const providerId = resolveEndpointProviderId(endpoint);
+		postMessage({
+			type: 'syncProxyModels',
+			baseUrl: endpoint.baseUrl,
+			apiKey: endpoint.apiKey,
+			enabledModelIds: endpoint.enabledModels,
+			endpointId,
+			providerId,
+			providerName: providerId,
+			headers: endpoint.headers,
+			protocol: getProxyEndpointProtocol(endpoint.protocol),
+		});
+	};
+
 	const handleUpdateEndpointField = (
 		endpointId: string,
 		field: 'name' | 'baseUrl' | 'apiKey' | 'protocol',
@@ -312,26 +331,8 @@ export const ProviderManager: React.FC = () => {
 		updateProxyEndpoint(endpointId, { [field]: value });
 		persistProxyEndpoints(useSettingsStore.getState().proxyEndpoints);
 
-		// When protocol changes and models are already enabled, re-sync to opencode.json
-		// so the correct npm package is written immediately.
 		if (field === 'protocol') {
-			const endpoint = useSettingsStore
-				.getState()
-				.proxyEndpoints.find(item => item.id === endpointId);
-			if (endpoint && endpoint.enabledModels.length > 0) {
-				const providerId = resolveEndpointProviderId(endpoint);
-				postMessage({
-					type: 'syncProxyModels',
-					baseUrl: endpoint.baseUrl,
-					apiKey: endpoint.apiKey,
-					enabledModelIds: endpoint.enabledModels,
-					endpointId,
-					providerId,
-					providerName: providerId,
-					headers: endpoint.headers,
-					protocol: getProxyEndpointProtocol(endpoint.protocol),
-				});
-			}
+			syncEndpointToOpenCode(endpointId);
 		}
 	};
 
@@ -340,7 +341,7 @@ export const ProviderManager: React.FC = () => {
 		persistProxyEndpoints(useSettingsStore.getState().proxyEndpoints);
 	};
 
-	const handleEndpointBlur = () => undefined;
+	const handleEndpointBlur = (endpointId: string) => syncEndpointToOpenCode(endpointId);
 
 	const handleFetchEndpointModels = (endpointId: string) => {
 		const endpoint = useSettingsStore
@@ -657,7 +658,7 @@ export const ProviderManager: React.FC = () => {
 										handleUpdateEndpointField(endpoint.id, field, value)
 									}
 									onHeadersChange={headers => handleUpdateEndpointHeaders(endpoint.id, headers)}
-									onBlur={handleEndpointBlur}
+									onBlur={() => handleEndpointBlur(endpoint.id)}
 									onFetchModels={() => handleFetchEndpointModels(endpoint.id)}
 									onToggleModel={modelId => handleToggleEndpointModel(endpoint.id, modelId)}
 									onRemove={() => handleRemoveEndpoint(endpoint.id)}

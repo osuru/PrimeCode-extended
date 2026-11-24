@@ -30,8 +30,10 @@ import { Button, IconButton, ScrollContainer, SegmentedControl, Tooltip } from '
 import { McpSettingsPanel } from './McpSettingsPanel';
 import { PromptImproverSettings } from './PromptImproverSettings';
 import { AddProviderSection, ProviderManager } from './ProviderManager';
+import { RateLimiterSettingsSection } from './RateLimiterSettings';
 import { RulesSettingsPanel } from './RulesSettingsPanel';
 import { CLIStatusBar, GroupTitle, SettingRow, SettingsBadge, SettingsGroup } from './SettingsUI';
+import { SmallModelSettingsSection } from './SmallModelSettings';
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
 	settings: <SettingsIcon size={14} />,
@@ -387,6 +389,10 @@ const MainSettings: React.FC = () => {
 			<OpenCodeProvidersSection />
 
 			<PromptImproverSettings />
+
+			<SmallModelSettingsSection />
+
+			<RateLimiterSettingsSection />
 
 			{/* CLI Status at the bottom */}
 		</div>

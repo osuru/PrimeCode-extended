@@ -15,6 +15,7 @@ import { McpManagementService } from '../services/mcp/McpManagementService';
 import { OpenCodeClientService } from '../services/OpenCodeClientService';
 import { AgentResourceService } from '../services/opencode/AgentResourceService';
 import { OpenCodeConfigService } from '../services/opencode/OpenCodeConfigService';
+import { RateLimiterPluginService } from '../services/RateLimiterPluginService';
 import { ResourceService } from '../services/ResourceService';
 import { ResourceWatcherService } from '../services/ResourceWatcherService';
 import { RulesService } from '../services/RulesService';
@@ -169,6 +170,7 @@ export class ServiceRegistry implements vscode.Disposable {
 	public readonly openCodeConfig: OpenCodeConfigService;
 	public readonly agentResources: AgentResourceService;
 	public readonly modelsDev: ModelsDevService;
+	public readonly rateLimiter: RateLimiterPluginService;
 	public readonly runtimeReload: RuntimeReloadService;
 	public rules: RulesService | null = null; // RulesService depends on workspace root
 
@@ -184,7 +186,9 @@ export class ServiceRegistry implements vscode.Disposable {
 
 		this.openCodeClient = new OpenCodeClientService();
 		this.modelsDev = new ModelsDevService();
+		this.rateLimiter = new RateLimiterPluginService();
 		this.runtimeReload = new RuntimeReloadService();
+		void this.rateLimiter.syncFromConfig();
 
 		this.mcpManagement = new McpManagementService(
 			context,
@@ -197,6 +201,13 @@ export class ServiceRegistry implements vscode.Disposable {
 		// notify the watcher so it doesn't trigger a redundant reload.
 		this.mcpManagement.setOnConfigSaved(contentHash => {
 			this.configFileWatcher.notifyUiSave(contentHash);
+		});
+
+		// Connect UI-save suppression for OpenCodeClientService self-writes
+		// (proxy provider / permission sync). Also suppresses via content hash so
+		// the watcher ignores the extension's own writes and avoids reload loops.
+		this.openCodeClient.setOnConfigSaved(info => {
+			this.configFileWatcher.notifyUiSave(info.contentHash, info.path);
 		});
 
 		// Initialize workspace-scoped services if workspace is already open

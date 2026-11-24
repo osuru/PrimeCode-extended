@@ -1,4 +1,8 @@
-import { getCustomEndpointDedupeKey, getProxyEndpointProtocol } from '../../common';
+import {
+	getCustomEndpointDedupeKey,
+	getProxyEndpointProtocol,
+	normalizeRateLimiterSettings,
+} from '../../common';
 import type { ProxyEndpointState, SettingsActions, SettingsState } from './settingsStore';
 
 // Helper for settings data mapping
@@ -12,6 +16,12 @@ export const handleSettingsData = (
 	if (settings.provider !== undefined) mappedSettings.provider = settings.provider;
 	if (settings['access.autoApprove'] !== undefined) {
 		mappedSettings.accessAutoApprove = settings['access.autoApprove'];
+	}
+	if (settings.rateLimiter !== undefined) {
+		mappedSettings.rateLimiter = normalizeRateLimiterSettings(settings.rateLimiter);
+	}
+	if (typeof settings.smallModel === 'string') {
+		mappedSettings.smallModel = settings.smallModel;
 	}
 	if (settings['proxy.endpoints'] !== undefined && Array.isArray(settings['proxy.endpoints'])) {
 		const currentById = new Map(

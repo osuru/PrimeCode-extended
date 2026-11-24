@@ -8,6 +8,7 @@
  */
 
 import * as vscode from 'vscode';
+import { normalizeRateLimiterSettings, type RateLimiterSettings } from '../common/rateLimiter';
 import { normalizeDriveLetter } from '../utils/path';
 import {
 	type AppSettings,
@@ -42,6 +43,9 @@ export interface PrimeCodeSettings {
 	'opencode.serverTimeout'?: number;
 	'opencode.serverUrl'?: string;
 	'opencode.agent'?: string;
+	'opencode.watchConfig'?: boolean;
+	rateLimiter?: RateLimiterSettings;
+	smallModel?: string;
 	'opencode.enabledModels': string[];
 	'opencode.providerModelVisibility'?: Record<string, boolean | undefined>;
 
@@ -111,6 +115,10 @@ export class Settings implements ISettings {
 				return (app.promptImproveTemplate || undefined) as T | undefined;
 			case 'opencode.agent':
 				return (app.opencodeAgent || undefined) as T | undefined;
+			case 'rateLimiter':
+				return normalizeRateLimiterSettings(app.rateLimiter) as T;
+			case 'smallModel':
+				return (app.smallModel || undefined) as T | undefined;
 			default:
 				return this.config.get<T>(key);
 		}
@@ -151,6 +159,12 @@ export class Settings implements ISettings {
 			case 'opencode.agent':
 				updateAppSettings({ opencodeAgent: (value as string) || '' });
 				return;
+			case 'rateLimiter':
+				updateAppSettings({ rateLimiter: normalizeRateLimiterSettings(value) });
+				return;
+			case 'smallModel':
+				updateAppSettings({ smallModel: (value as string) || '' });
+				return;
 			default:
 				break;
 		}
@@ -178,6 +192,9 @@ export class Settings implements ISettings {
 			'opencode.autoStart': this.config.get('opencode.autoStart'),
 			'opencode.serverTimeout': this.config.get('opencode.serverTimeout'),
 			'opencode.serverUrl': this.config.get('opencode.serverUrl'),
+			'opencode.watchConfig': this.config.get('opencode.watchConfig'),
+			rateLimiter: normalizeRateLimiterSettings(app.rateLimiter),
+			smallModel: app.smallModel || undefined,
 			'opencode.agent': app.opencodeAgent || undefined,
 			'opencode.enabledModels': models.enabledModels,
 			'opencode.providerModelVisibility': models.providerModelVisibility,
